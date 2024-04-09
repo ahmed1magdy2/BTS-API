@@ -1,6 +1,7 @@
-numpy
-flask
-flask-cors
-pillow
-keras
-tensorflow
+gunicorn
+Flask==2.2.2
+flask-cors==4.0.0
+numpy==1.24.3
+Pillow==9.4.0
+keras==2.14.0
+tensorflow==2.14.0
