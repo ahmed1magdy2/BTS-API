@@ -1,4 +1,5 @@
 gunicorn
+--upgrade pip
 Flask==2.2.2
 flask-cors==4.0.0
 numpy==1.24.3
