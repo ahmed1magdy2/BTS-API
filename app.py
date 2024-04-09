@@ -36,7 +36,7 @@ app = Flask(__name__)
 CORS(app)
 W = H = 256
 with CustomObjectScope({"dice_coef": dice_coef, "dice_loss": dice_loss, "iou" : iou }):
-    model = keras.models.load_model("https://drive.google.com/file/d/1fgyIHZwFFynm8xtlOl4dxMN7A1Vwylzt/view?usp=drive_link")
+    model = keras.models.load_model("model_segmentation_256x256px.h5")
 
 @app.route('/predict', methods=['POST'])
 def predict():
