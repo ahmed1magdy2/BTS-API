@@ -1,5 +1,4 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+import streamlit as st
 import numpy as np
 from PIL import Image
 import cv2
@@ -10,7 +9,7 @@ from tensorflow.keras import backend as K
 import base64
 from io import BytesIO
 
-
+# Custom metrics
 smooth = 1e-15
 
 def dice_coef(y_true, y_pred):
@@ -43,24 +42,36 @@ def predict_image(image_data):
     result = svm.predict(hog_features)[1].ravel()
     return 'Brain_MRI' if result[0] == 0 else 'Not_Brain'
 
-app = Flask(__name__)
-CORS(app)
-W = H = 256
+# Streamlit app
+st.set_page_config(page_title="Brain MRI Segmentation", layout="wide")
+st.title("🧠 Brain MRI Segmentation")
 
+st.markdown("""
+    <style>
+    .reportview-container {
+        background: #f0f2f6;
+    }
+    .stButton>button {
+        color: white;
+        background-color: #4CAF50;
+        border-radius: 8px;
+        padding: 10px 24px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Load the model and SVM
 with CustomObjectScope({"dice_coef": dice_coef, "dice_loss": dice_loss, "iou": iou}):
     model = keras.models.load_model("model_segmentation_256x256px.h5")
 
-# Load the trained SVM model
 svm = cv2.ml.SVM_load('brain_mri_classifier.sav')
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    print("Image requested ..")
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image file provided'}), 400
+W = H = 256
 
-    image_file = request.files['image']
-    image_data = image_file.read()
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    image_data = uploaded_file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
     image = image.resize((W, H))
 
@@ -79,7 +90,7 @@ def predict():
 
         line = np.ones((H, 10, 3)) * 255
 
-        img_mask = x * (1 - y_pred ) * 255
+        img_mask = x * (1 - y_pred) * 255
         img_mask = np.squeeze(img_mask, axis=0)
 
         cat_images = np.concatenate([np.array(image), line, y_pred, line, img_mask], axis=1)
@@ -92,13 +103,4 @@ def predict():
         cat_images = np.concatenate([np.array(image), line, np.array(y_pred)], axis=1)
         predicted_image = Image.fromarray(cat_images.astype(np.uint8))
 
-    # Encode image data to base64
-    buffered = BytesIO()
-    predicted_image.save(buffered, format="JPEG")
-    encoded_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
-    print("Finished ..")
-
-    return jsonify({'outputImageData': encoded_image})
-
-if __name__ == '__main__':
-    app.run(port=5000,debug=True)
+    st.image(predicted_image, use_column_width=True)
