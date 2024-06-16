@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
-import cv2
+import cv2 as cv
 import keras
 from keras.utils import CustomObjectScope
 import tensorflow as tf
@@ -30,9 +30,9 @@ def iou(y_true, y_pred):
 
 # Function to extract HOG features
 def extract_hog_features(image_data):
-    image = cv2.imdecode(np.frombuffer(image_data, np.uint8), cv2.IMREAD_GRAYSCALE)
-    image = cv2.resize(image, (128, 128))
-    hog = cv2.HOGDescriptor()
+    image = cv.imdecode(np.frombuffer(image_data, np.uint8), cv.IMREAD_GRAYSCALE)
+    image = cv.resize(image, (128, 128))
+    hog = cv.HOGDescriptor()
     h = hog.compute(image)
     return h
 
