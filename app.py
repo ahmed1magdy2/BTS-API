@@ -1,7 +1,8 @@
-import streamlit as st
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 import numpy as np
 from PIL import Image
-import cv2 as cv
+import cv2
 import keras
 from keras.utils import CustomObjectScope
 import tensorflow as tf
@@ -9,7 +10,7 @@ from tensorflow.keras import backend as K
 import base64
 from io import BytesIO
 
-# Custom metrics
+
 smooth = 1e-15
 
 def dice_coef(y_true, y_pred):
@@ -30,9 +31,9 @@ def iou(y_true, y_pred):
 
 # Function to extract HOG features
 def extract_hog_features(image_data):
-    image = cv.imdecode(np.frombuffer(image_data, np.uint8), cv.IMREAD_GRAYSCALE)
-    image = cv.resize(image, (128, 128))
-    hog = cv.HOGDescriptor()
+    image = cv2.imdecode(np.frombuffer(image_data, np.uint8), cv2.IMREAD_GRAYSCALE)
+    image = cv2.resize(image, (128, 128))
+    hog = cv2.HOGDescriptor()
     h = hog.compute(image)
     return h
 
@@ -42,36 +43,24 @@ def predict_image(image_data):
     result = svm.predict(hog_features)[1].ravel()
     return 'Brain_MRI' if result[0] == 0 else 'Not_Brain'
 
-# Streamlit app
-st.set_page_config(page_title="Brain MRI Segmentation", layout="wide")
-st.title("🧠 Brain MRI Segmentation")
+app = Flask(__name__)
+CORS(app)
+W = H = 256
 
-st.markdown("""
-    <style>
-    .reportview-container {
-        background: #f0f2f6;
-    }
-    .stButton>button {
-        color: white;
-        background-color: #4CAF50;
-        border-radius: 8px;
-        padding: 10px 24px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# Load the model and SVM
 with CustomObjectScope({"dice_coef": dice_coef, "dice_loss": dice_loss, "iou": iou}):
     model = keras.models.load_model("model_segmentation_256x256px.h5")
 
+# Load the trained SVM model
 svm = cv2.ml.SVM_load('brain_mri_classifier.sav')
 
-W = H = 256
+@app.route('/predict', methods=['POST'])
+def predict():
+    print("Image requested ..")
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image file provided'}), 400
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
-    image_data = uploaded_file.read()
+    image_file = request.files['image']
+    image_data = image_file.read()
     image = Image.open(BytesIO(image_data)).convert("RGB")
     image = image.resize((W, H))
 
@@ -90,7 +79,7 @@ if uploaded_file is not None:
 
         line = np.ones((H, 10, 3)) * 255
 
-        img_mask = x * (1 - y_pred) * 255
+        img_mask = x * (1 - y_pred ) * 255
         img_mask = np.squeeze(img_mask, axis=0)
 
         cat_images = np.concatenate([np.array(image), line, y_pred, line, img_mask], axis=1)
@@ -103,4 +92,13 @@ if uploaded_file is not None:
         cat_images = np.concatenate([np.array(image), line, np.array(y_pred)], axis=1)
         predicted_image = Image.fromarray(cat_images.astype(np.uint8))
 
-    st.image(predicted_image, use_column_width=True)
+    # Encode image data to base64
+    buffered = BytesIO()
+    predicted_image.save(buffered, format="JPEG")
+    encoded_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+    print("Finished ..")
+
+    return jsonify({'outputImageData': encoded_image})
+
+if __name__ == '__main__':
+    app.run(port=5000,debug=True)
